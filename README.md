@@ -43,6 +43,6 @@ OGG・M4A は Chrome 標準の WebCodecs を使って書き出します（ライ
 * `js/app.js` … 読み込み・波形描画・範囲選択・削除・再生・書き出し操作
 * `js/encoders.js` … WAV / OGG / M4A のエンコード処理
 
-## AIの仕様に関して
+## AIの利用について
 
 このツールはClaudeCodeを使用して作成しています。
