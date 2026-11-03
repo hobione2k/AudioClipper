@@ -4,7 +4,7 @@
 
 ## 使い方
 
-1. `index.html` をブラウザ（Chrome / Edge / Firefox など）で開く
+1. [こちらのページ](https://hobione2k.github.io/AudioClipper/)、または`index.html` をブラウザ（Chrome / Edge / Firefox など）で開く
 2. オーディオファイル（WAV / MP3 / OGG / FLAC / M4A）をドロップ、またはクリックして選択
 3. 波形をドラッグして削除したい範囲を選択
 4. 「選択範囲を削除」（または Delete キー）で削除
