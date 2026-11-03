@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AudioClipper</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <h1>AudioClipper</h1>
+    <p class="subtitle">ローカルブラウザ上で動くオーディオ編集ツール（WAV / MP3 / OGG / FLAC / M4A 対応）</p>
+  </header>
+
+  <main>
+    <!-- ファイル読み込みエリア（クリック or ドラッグ&ドロップ） -->
+    <label id="dropZone" class="drop-zone">
+      <input type="file" id="fileInput" accept=".wav,.mp3,.ogg,.oga,.opus,.flac,.m4a,audio/*" hidden>
+      <span id="dropText">オーディオファイル（WAV / MP3 / OGG / FLAC / M4A）をここにドロップ、またはクリックして選択</span>
+    </label>
+
+    <!-- 波形表示エリア：下層に波形、上層に選択範囲と再生位置を描画 -->
+    <div id="waveWrap" class="wave-wrap" hidden>
+      <canvas id="waveCanvas"></canvas>
+      <canvas id="overlayCanvas"></canvas>
+    </div>
+
+    <!-- 時間情報の表示 -->
+    <div id="info" class="info" hidden>
+      <span>全体: <b id="totalTime">0:00.000</b></span>
+      <span>再生位置: <b id="cursorTime">0:00.000</b></span>
+      <span>選択: <b id="selTime">なし</b></span>
+    </div>
+
+    <!-- 操作ボタン -->
+    <div id="controls" class="controls" hidden>
+      <button id="playBtn" title="スペースキー">▶ 再生</button>
+      <button id="deleteBtn" disabled title="Delete / Backspace キー">選択範囲を削除</button>
+      <button id="cropBtn" disabled>選択範囲以外を削除</button>
+      <button id="undoBtn" disabled title="Ctrl+Z">元に戻す</button>
+      <span class="spacer"></span>
+      <label>
+        形式
+        <select id="exportFormat">
+          <option value="wav16">WAV 16bit PCM</option>
+          <option value="wav24">WAV 24bit PCM</option>
+          <option value="wav32">WAV 32bit float</option>
+          <option value="ogg">OGG (Opus)</option>
+          <option value="m4a">M4A (AAC)</option>
+        </select>
+      </label>
+      <!-- 圧縮形式（OGG / M4A）のときだけ表示 -->
+      <label id="bitrateLabel" hidden>
+        ビットレート
+        <select id="bitrate">
+          <option value="96000">96 kbps</option>
+          <option value="128000" selected>128 kbps</option>
+          <option value="160000">160 kbps</option>
+          <option value="192000">192 kbps</option>
+        </select>
+      </label>
+      <button id="exportBtn" class="primary">エクスポート</button>
+    </div>
+
+    <p class="help" id="help" hidden>
+      波形をドラッグして範囲を選択 ／ クリックで再生位置を指定 ／ Shift+クリックで選択範囲を拡張
+    </p>
+  </main>
+
+  <script src="js/encoders.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

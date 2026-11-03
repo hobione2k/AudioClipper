@@ -1,0 +1,132 @@
+/* 全体の配色 */
+:root {
+  --bg: #16181d;
+  --panel: #1f2229;
+  --border: #343844;
+  --text: #e6e8ee;
+  --muted: #9aa0ad;
+  --accent: #4fa3ff;
+  --wave: #5cd6a0;
+  --danger: #ff6b6b;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+}
+
+header {
+  padding: 20px 24px 8px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+main {
+  padding: 16px 24px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ファイルドロップエリア */
+.drop-zone {
+  display: block;
+  padding: 22px;
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  text-align: center;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.drop-zone:hover,
+.drop-zone.dragover {
+  border-color: var(--accent);
+  background: rgba(79, 163, 255, .06);
+  color: var(--text);
+}
+
+/* 波形エリア：2枚のキャンバスを重ねる */
+.wave-wrap {
+  position: relative;
+  height: 260px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.wave-wrap canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+#overlayCanvas {
+  cursor: text;
+  touch-action: none;
+}
+
+.info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.info b {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ボタン類 */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.controls .spacer { flex: 1; }
+.controls label {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+button, select {
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 14px;
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: .4; cursor: default; }
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0b1220;
+  font-weight: 600;
+}
+
+.help {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+[hidden] { display: none !important; }
