@@ -25,6 +25,8 @@ const exportFormatSel = document.getElementById('exportFormat');
 const bitrateLabel = document.getElementById('bitrateLabel');
 const bitrateSel = document.getElementById('bitrate');
 const exportBtn = document.getElementById('exportBtn');
+const volumeSlider = document.getElementById('volume');
+const volumeValueEl = document.getElementById('volumeValue');
 
 const waveCtx = waveCanvas.getContext('2d');
 const overlayCtx = overlayCanvas.getContext('2d');
@@ -55,6 +57,7 @@ const COLORS = {
 
 // ---------- 再生関連の状態 ----------
 let audioCtx = null;       // 再生用のAudioContext（初回操作時に生成）
+let gainNode = null;       // 再生音量を調整するノード（再生音のみに適用）
 let sourceNode = null;     // 再生中のノード
 let playToken = 0;         // 停止判定用の識別子
 let playStartCtxTime = 0;  // 再生開始時のAudioContext時刻
@@ -495,9 +498,46 @@ function onBufferChanged() {
 
 // AudioContextを取得（なければ作成）
 function getAudioContext() {
-  if (!audioCtx) audioCtx = new AudioContext();
+  if (!audioCtx) {
+    audioCtx = new AudioContext();
+    // 再生音は「音源 → 音量調整 → スピーカー」の順に流す
+    gainNode = audioCtx.createGain();
+    gainNode.gain.value = getVolume();
+    gainNode.connect(audioCtx.destination);
+  }
   return audioCtx;
 }
+
+// スライダーの値（0〜200%）を音量の倍率（0〜2.0）に変換する
+function getVolume() {
+  return Number(volumeSlider.value) / 100;
+}
+
+// 音量スライダーの表示と再生音量を更新する
+function applyVolume() {
+  volumeValueEl.textContent = `${volumeSlider.value}%`;
+  // 再生中でも即座に反映（急な変化によるプチノイズを防ぐため短時間でなめらかに変化させる）
+  if (gainNode) gainNode.gain.setTargetAtTime(getVolume(), audioCtx.currentTime, 0.01);
+  // 次回起動時も同じ音量になるよう保存（保存できない環境では無視）
+  try { localStorage.setItem('audioClipper.volume', volumeSlider.value); } catch (_) { /* 無視 */ }
+}
+
+// 前回保存した音量を復元する
+try {
+  const saved = localStorage.getItem('audioClipper.volume');
+  if (saved !== null && !Number.isNaN(Number(saved))) volumeSlider.value = saved;
+} catch (_) { /* 保存領域が使えない場合は初期値のまま */ }
+volumeValueEl.textContent = `${volumeSlider.value}%`;
+
+// スライダー操作で音量を変更
+volumeSlider.addEventListener('input', applyVolume);
+// 操作が終わったらフォーカスを外す（スペースキー等のショートカットを引き続き使えるように）
+volumeSlider.addEventListener('change', () => volumeSlider.blur());
+// ダブルクリックで100%に戻す
+volumeSlider.addEventListener('dblclick', () => {
+  volumeSlider.value = 100;
+  applyVolume();
+});
 
 // 再生・停止を切り替える
 function togglePlay() {
@@ -522,7 +562,7 @@ function startPlayback() {
 
   const node = ctx.createBufferSource();
   node.buffer = buffer;
-  node.connect(ctx.destination);
+  node.connect(gainNode); // 音量調整ノードを経由して出力
   node.start(0, start / buffer.sampleRate, (end - start) / buffer.sampleRate);
 
   // 再生終了時の処理（停止ボタンで止めた場合は別の識別子になるため無視される）

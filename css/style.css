@@ -110,6 +110,24 @@ main {
   font-size: 14px;
 }
 
+/* 再生音量スライダー */
+.controls label.volume {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+}
+.volume input[type="range"] {
+  width: 110px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.volume #volumeValue {
+  min-width: 3.5em;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
 button, select {
   font: inherit;
   font-size: 14px;

@@ -38,6 +38,12 @@
       <button id="deleteBtn" disabled title="Delete / Backspace キー">選択範囲を削除</button>
       <button id="cropBtn" disabled>選択範囲以外を削除</button>
       <button id="undoBtn" disabled title="Ctrl+Z">元に戻す</button>
+      <!-- 再生音量（再生時のみ反映。エクスポートには影響しない） -->
+      <label class="volume" title="再生音量（エクスポートには影響しません）">
+        音量
+        <input type="range" id="volume" min="0" max="200" step="1" value="100">
+        <span id="volumeValue">100%</span>
+      </label>
       <span class="spacer"></span>
       <label>
         形式
