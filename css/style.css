@@ -17,6 +17,10 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: system-ui, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+  /* フッターを画面下端に固定するため、縦方向のフレックスレイアウトにする */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 header {
@@ -35,6 +39,8 @@ h1 {
 }
 
 main {
+  /* 余白を main が吸収し、フッターを下端に押し下げる */
+  flex: 1;
   padding: 16px 24px 32px;
   display: flex;
   flex-direction: column;
@@ -127,6 +133,26 @@ button.primary {
   margin: 0;
   font-size: 13px;
   color: var(--muted);
+}
+
+/* フッター：リポジトリ・ライセンスへのリンク */
+footer {
+  padding: 12px 24px 16px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+footer a {
+  color: var(--muted);
+  text-decoration: none;
+}
+footer a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+footer .sep {
+  margin: 0 8px;
 }
 
 [hidden] { display: none !important; }
