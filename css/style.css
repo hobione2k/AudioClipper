@@ -1,13 +1,48 @@
-/* 全体の配色 */
+/* 全体の配色：ダークテーマ（既定） */
 :root {
+  color-scheme: dark; /* セレクトボックス等のブラウザ標準部品もダーク表示にする */
   --bg: #16181d;
   --panel: #1f2229;
   --border: #343844;
   --text: #e6e8ee;
   --muted: #9aa0ad;
   --accent: #4fa3ff;
-  --wave: #5cd6a0;
+  --accent-soft: rgba(79, 163, 255, .06);
+  --on-accent: #0b1220;  /* アクセント色の上に載せる文字色 */
   --danger: #ff6b6b;
+
+  /* 波形キャンバスの描画色（app.js が読み取って使う） */
+  --wave: #5cd6a0;
+  --wave-center: #343844;
+  --wave-grid: rgba(255, 255, 255, .06);
+  --wave-grid-text: #6c7280;
+  --wave-selection: rgba(255, 107, 107, .25);
+  --wave-selection-edge: #ff6b6b;
+  --wave-cursor: #4fa3ff;
+  --wave-playhead: #ffd166;
+}
+
+/* 全体の配色：ライトテーマ */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f4f5f8;
+  --panel: #ffffff;
+  --border: #d3d7df;
+  --text: #1d2129;
+  --muted: #5d6471;
+  --accent: #1f6fd1;
+  --accent-soft: rgba(31, 111, 209, .06);
+  --on-accent: #ffffff;
+  --danger: #d63939;
+
+  --wave: #1e9a68;
+  --wave-center: #d3d7df;
+  --wave-grid: rgba(0, 0, 0, .07);
+  --wave-grid-text: #8a909c;
+  --wave-selection: rgba(214, 57, 57, .18);
+  --wave-selection-edge: #d63939;
+  --wave-cursor: #1f6fd1;
+  --wave-playhead: #e08a00;
 }
 
 * { box-sizing: border-box; }
@@ -23,8 +58,17 @@ body {
   flex-direction: column;
 }
 
+/* ヘッダー：左にタイトル、右にテーマ切り替えボタン */
 header {
   padding: 20px 24px 8px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.theme-toggle {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 h1 {
@@ -61,7 +105,7 @@ main {
 .drop-zone:hover,
 .drop-zone.dragover {
   border-color: var(--accent);
-  background: rgba(79, 163, 255, .06);
+  background: var(--accent-soft);
   color: var(--text);
 }
 
@@ -143,7 +187,7 @@ button:disabled { opacity: .4; cursor: default; }
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #0b1220;
+  color: var(--on-accent);
   font-weight: 600;
 }
 

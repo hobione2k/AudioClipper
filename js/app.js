@@ -43,17 +43,32 @@ const state = {
 // 履歴の最大保存数（メモリ節約のため）
 const MAX_HISTORY = 20;
 
-// 波形描画の色
-const COLORS = {
-  wave: '#5cd6a0',
-  centerLine: '#343844',
-  grid: 'rgba(255,255,255,0.06)',
-  gridText: '#6c7280',
-  selection: 'rgba(255,107,107,0.25)',
-  selectionEdge: '#ff6b6b',
-  cursor: '#4fa3ff',
-  playhead: '#ffd166',
-};
+// 波形描画の色（テーマに応じて style.css の CSS 変数から読み込む）
+const COLORS = {};
+
+// 現在のテーマの描画色を CSS 変数から取得する
+function loadColors() {
+  const style = getComputedStyle(document.documentElement);
+  const get = (name) => style.getPropertyValue(name).trim();
+  COLORS.wave = get('--wave');
+  COLORS.centerLine = get('--wave-center');
+  COLORS.grid = get('--wave-grid');
+  COLORS.gridText = get('--wave-grid-text');
+  COLORS.selection = get('--wave-selection');
+  COLORS.selectionEdge = get('--wave-selection-edge');
+  COLORS.cursor = get('--wave-cursor');
+  COLORS.playhead = get('--wave-playhead');
+}
+loadColors();
+
+// テーマが切り替わったら描画色を読み直して波形を描き直す（theme.js から通知される）
+document.addEventListener('themechange', () => {
+  loadColors();
+  if (!state.buffer) return;
+  drawWaveform();
+  // 再生中は次のフレームで再生位置ごと描画されるため、停止中のみ上層を描き直す
+  if (!sourceNode) drawOverlay();
+});
 
 // ---------- 再生関連の状態 ----------
 let audioCtx = null;       // 再生用のAudioContext（初回操作時に生成）

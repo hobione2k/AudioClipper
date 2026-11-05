@@ -5,11 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AudioClipper</title>
   <link rel="stylesheet" href="./css/style.css">
+  <!-- テーマ（ダーク/ライト）を描画前に適用するため head 内で読み込む -->
+  <script src="./js/theme.js"></script>
 </head>
 <body>
   <header>
-    <h1>AudioClipper</h1>
-    <p class="subtitle">ブラウザ上で動作するオーディオ編集ツール(ファイルは外部に送信されません)</p>
+    <div>
+      <h1>AudioClipper</h1>
+      <p class="subtitle">ブラウザ上で動作するオーディオ編集ツール(ファイルは外部に送信されません)</p>
+    </div>
+    <!-- テーマ切り替えボタン -->
+    <button id="themeToggle" class="theme-toggle" type="button"></button>
   </header>
 
   <main>
