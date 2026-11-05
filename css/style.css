@@ -118,7 +118,7 @@ main {
   margin-left: 8px;
 }
 .volume input[type="range"] {
-  width: 110px;
+  width: 180px;
   accent-color: var(--accent);
   cursor: pointer;
 }

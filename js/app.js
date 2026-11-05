@@ -140,7 +140,7 @@ async function loadFile(file) {
     controls.hidden = false;
     helpText.hidden = false;
     const bitText = info ? ` / ${info.bitsPerSample}bit` : '';
-    dropText.textContent = `${file.name}（${buffer.sampleRate} Hz / ${buffer.numberOfChannels}ch${bitText}）— 別のファイルを開くにはクリックまたはドロップ`;
+    dropText.textContent = `${file.name} (${buffer.sampleRate} Hz / ${buffer.numberOfChannels}ch${bitText})`;
 
     resizeCanvases();
     updateUI();
