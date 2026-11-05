@@ -58,16 +58,22 @@ body {
   flex-direction: column;
 }
 
-/* ヘッダー：左にタイトル、右にテーマ切り替えボタン */
+/* ヘッダー：中央にタイトルと説明、右端にテーマ切り替えボタン
+   （左右の列を同じ幅にして、タイトルが画面の中央に来るようにする） */
 header {
   padding: 20px 24px 8px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
   gap: 16px;
 }
+header > div {
+  grid-column: 2;
+  text-align: center;
+}
 .theme-toggle {
-  flex-shrink: 0;
+  grid-column: 3;
+  justify-self: end;
   white-space: nowrap;
 }
 
