@@ -3,6 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!--
+    コンテンツセキュリティポリシー（CSP）
+    ・既定ですべて禁止（default-src 'none'）し、同一オリジンのスクリプト/スタイルのみ許可
+    ・connect-src 'none' により fetch / XHR / WebSocket / sendBeacon 等の外部通信をすべて遮断
+    ・form-action / base-uri も禁止し、フォーム送信や基準URL書き換えによる送信を防ぐ
+  -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'">
   <title>AudioClipper</title>
   <link rel="stylesheet" href="./css/style.css">
   <!-- テーマ（ダーク/ライト）を描画前に適用するため head 内で読み込む -->
