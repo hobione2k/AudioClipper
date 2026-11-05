@@ -145,9 +145,7 @@ async function loadFile(file) {
     state.cursor = 0;
     state.history = [];
 
-    // エクスポート形式の初期値を元ファイルに合わせる
-    exportFormatSel.value = defaultExportFormat(file.name, info);
-    updateBitrateVisibility();
+    // ※ エクスポート形式の選択はリセットせず、前回の選択を引き継ぐ
 
     // 編集用のUIを表示
     waveWrap.hidden = false;
@@ -626,19 +624,6 @@ function animatePlayhead() {
 // =====================================================
 
 // ※ 各形式のエンコード処理は encoders.js にまとめている
-
-// 読み込んだファイルに合わせて書き出し形式の初期値を決める
-function defaultExportFormat(fileName, wavInfo) {
-  const isAvailable = (value) => !exportFormatSel.querySelector(`option[value="${value}"]`).disabled;
-  if (wavInfo) {
-    // WAVは元のビット深度に合わせる
-    return wavInfo.isFloat ? 'wav32' : (wavInfo.bitsPerSample === 24 ? 'wav24' : 'wav16');
-  }
-  // OGG・M4Aは同じ形式（ブラウザが対応している場合）、それ以外はWAV 16bit
-  if (/\.(ogg|oga|opus)$/i.test(fileName) && isAvailable('ogg')) return 'ogg';
-  if (/\.m4a$/i.test(fileName) && isAvailable('m4a')) return 'm4a';
-  return 'wav16';
-}
 
 // 圧縮形式のときだけビットレートの選択を表示する
 function updateBitrateVisibility() {
