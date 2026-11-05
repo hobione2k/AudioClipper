@@ -35,13 +35,13 @@
   --on-accent: #ffffff;
   --danger: #d63939;
 
-  --wave: #1e9a68;
+  --wave: #4a8fe2;          /* アクセント色に合わせた明るめの青 */
   --wave-center: #d3d7df;
   --wave-grid: rgba(0, 0, 0, .07);
   --wave-grid-text: #8a909c;
   --wave-selection: rgba(214, 57, 57, .18);
   --wave-selection-edge: #d63939;
-  --wave-cursor: #1f6fd1;
+  --wave-cursor: #0f2f5c;   /* 青い波形に埋もれないよう濃い紺色にする */
   --wave-playhead: #e08a00;
 }
 
