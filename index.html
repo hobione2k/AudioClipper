@@ -30,7 +30,8 @@
     <!-- ファイル読み込みエリア（クリック or ドラッグ&ドロップ） -->
     <label id="dropZone" class="drop-zone">
       <input type="file" id="fileInput" accept=".wav,.mp3,.ogg,.oga,.opus,.flac,.m4a,audio/*" hidden>
-      <span id="dropText">オーディオファイル（WAV / MP3 / OGG / FLAC / M4A）をドラッグ&ドロップ、またはクリックして選択</span>
+      <!-- 初期メッセージ：PC 向けとスマホ向けを CSS で出し分ける -->
+      <span id="dropText"><span class="drop-text-pc">オーディオファイル（WAV / MP3 / OGG / FLAC / M4A）をドラッグ&ドロップ、またはクリックして選択</span><span class="drop-text-mobile">オーディオファイル（WAV / MP3 / OGG / FLAC / M4A）を選択</span></span>
     </label>
 
     <!-- 波形表示エリア：下層に波形、上層に選択範囲と再生位置を描画 -->

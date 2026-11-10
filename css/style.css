@@ -75,6 +75,45 @@ header > div {
   grid-column: 3;
   justify-self: end;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /* 他のボタンより一回り小さくして控えめに表示する */
+  font-size: 12px;
+  padding: 5px 10px;
+  /* 角を大きく丸めて、他のボタンと区別しやすいカプセル形にする */
+  border-radius: 10px;
+}
+
+/* ドロップエリアの初期メッセージ：通常は PC 向けの文言を表示する */
+.drop-text-mobile { display: none; }
+
+/* スマホ（狭い画面）向けの表示切り替え */
+@media (max-width: 600px) {
+  /* テーマ切り替えボタンをアイコンのみの表示にする */
+  .theme-toggle-label { display: none; }
+  .theme-toggle { padding: 5px 8px; }
+
+  /* 狭い画面では左右の列幅が揃わずタイトルが左に寄るため、
+     タイトルと説明は全幅で中央揃えにし、
+     テーマ切り替えボタンはレイアウトから外してタイトルと同じ高さの右端に重ねて置く */
+  header {
+    position: relative;
+    grid-template-columns: 1fr;
+  }
+  header > div {
+    grid-column: 1;
+  }
+  .theme-toggle {
+    position: absolute;
+    /* ヘッダー上余白(20px)を基準に、タイトル行(約26px)とボタンの縦中央が揃う位置 */
+    top: 19px;
+    right: 16px;
+  }
+
+  /* ドロップエリアはドラッグ&ドロップできないため「タップして選択」の文言にする */
+  .drop-text-pc { display: none; }
+  .drop-text-mobile { display: inline; }
 }
 
 h1 {
@@ -83,7 +122,8 @@ h1 {
 }
 
 .subtitle {
-  margin: 4px 0 0;
+  /* タイトルとの間隔を少し空けて読みやすくする */
+  margin: 10px 0 0;
   color: var(--muted);
   font-size: 13px;
 }

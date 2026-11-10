@@ -34,12 +34,25 @@
   }
 
   // 切り替えボタンの表示を現在のテーマに合わせる（押すと切り替わる先を表示）
+  // ※ スマホではラベルを CSS で隠してアイコンのみ表示するため、アイコンとラベルを別要素にする
   function updateToggleButton() {
     const btn = document.getElementById('themeToggle');
     if (!btn) return;
     const isDark = currentTheme() === 'dark';
-    btn.textContent = isDark ? '☀ ライト' : '🌙 ダーク';
+
+    const icon = document.createElement('span');
+    icon.className = 'theme-toggle-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = isDark ? '☀' : '🌙';
+
+    const label = document.createElement('span');
+    label.className = 'theme-toggle-label';
+    label.textContent = isDark ? 'ライト' : 'ダーク';
+
+    btn.replaceChildren(icon, label);
     btn.title = isDark ? 'ライトテーマに切り替え' : 'ダークテーマに切り替え';
+    // ラベルが非表示でも読み上げソフトに用途が伝わるようにする
+    btn.setAttribute('aria-label', btn.title);
   }
 
   // 初期テーマ：保存済みの設定 → なければOSの設定に合わせる

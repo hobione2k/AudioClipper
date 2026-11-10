@@ -92,8 +92,13 @@ let peaksCache = null;
 // 読み込みに対応する拡張子（デコードはブラウザ標準機能で行う）
 const SUPPORTED_EXT = /\.(wav|mp3|ogg|oga|opus|flac|m4a)$/i;
 
-// ドロップエリアの初期メッセージ
-const DEFAULT_DROP_TEXT = dropText.textContent;
+// ドロップエリアの初期メッセージ（PC 向け・スマホ向けの両方の要素を控えておく）
+const DEFAULT_DROP_NODES = [...dropText.childNodes].map((node) => node.cloneNode(true));
+
+// ドロップエリアを初期メッセージに戻す
+function resetDropText() {
+  dropText.replaceChildren(...DEFAULT_DROP_NODES.map((node) => node.cloneNode(true)));
+}
 
 // =====================================================
 // ファイル読み込み
@@ -160,7 +165,7 @@ async function loadFile(file) {
   } catch (err) {
     console.error(err);
     alert('ファイルの読み込みに失敗しました（ブラウザがこの形式・コーデックに対応していない可能性があります）: ' + err.message);
-    dropText.textContent = DEFAULT_DROP_TEXT;
+    resetDropText();
   }
 }
 
