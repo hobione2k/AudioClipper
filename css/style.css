@@ -155,6 +155,13 @@ main {
   color: var(--text);
 }
 
+/* 波形エリア全体（波形・スクロールバー・拡大縮小ボタンを縦に並べる） */
+.wave-area {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 /* 波形エリア：2枚のキャンバスを重ねる */
 .wave-wrap {
   position: relative;
@@ -173,6 +180,40 @@ main {
 #overlayCanvas {
   cursor: text;
   touch-action: none;
+}
+
+/* 表示範囲を移動する横スクロールバー
+   （中身の幅を「全体の長さ ÷ 表示範囲」倍にして、ブラウザ標準のスクロールバーを使う） */
+.wave-scroll {
+  height: 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-color: var(--muted) transparent;
+}
+.wave-scroll-inner {
+  height: 1px;
+}
+
+/* 拡大・縮小ボタンの行 */
+.zoom-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.zoom-bar button {
+  font-size: 13px;
+  padding: 5px 12px;
+}
+.zoom-bar .view-range {
+  margin-left: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.zoom-bar .view-range b {
+  color: var(--text);
+  font-weight: normal;
+  font-variant-numeric: tabular-nums;
 }
 
 .info {

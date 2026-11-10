@@ -8,7 +8,15 @@
 const dropZone = document.getElementById('dropZone');
 const dropText = document.getElementById('dropText');
 const fileInput = document.getElementById('fileInput');
+const waveArea = document.getElementById('waveArea');
 const waveWrap = document.getElementById('waveWrap');
+const waveScroll = document.getElementById('waveScroll');
+const waveScrollInner = document.getElementById('waveScrollInner');
+const zoomOutBtn = document.getElementById('zoomOutBtn');
+const zoomInBtn = document.getElementById('zoomInBtn');
+const zoomFitBtn = document.getElementById('zoomFitBtn');
+const zoomSelBtn = document.getElementById('zoomSelBtn');
+const viewRangeEl = document.getElementById('viewRange');
 const waveCanvas = document.getElementById('waveCanvas');
 const overlayCanvas = document.getElementById('overlayCanvas');
 const infoBox = document.getElementById('info');
@@ -38,6 +46,8 @@ const state = {
   selection: null,   // 選択範囲 { start, end }（サンプル単位）
   cursor: 0,         // 再生開始位置（サンプル単位）
   history: [],       // 元に戻す用の履歴
+  viewStart: 0,      // 波形の表示範囲の先頭（サンプル単位・小数可）
+  viewLength: 1,     // 波形の表示範囲の長さ（サンプル単位・小数可）
 };
 
 // 履歴の最大保存数（メモリ節約のため）
@@ -66,8 +76,7 @@ document.addEventListener('themechange', () => {
   loadColors();
   if (!state.buffer) return;
   drawWaveform();
-  // 再生中は次のフレームで再生位置ごと描画されるため、停止中のみ上層を描き直す
-  if (!sourceNode) drawOverlay();
+  drawOverlay(getPlayheadSample());
 });
 
 // ---------- 再生関連の状態 ----------
@@ -79,15 +88,30 @@ let playStartCtxTime = 0;  // 再生開始時のAudioContext時刻
 let playStartSample = 0;   // 再生を開始したサンプル位置
 let playEndSample = 0;     // 再生を終了するサンプル位置
 let animationId = 0;       // 再生位置アニメーションのID
+let playheadWasVisible = false; // 前のフレームで再生位置が表示範囲内にあったか（自動スクロール判定用）
 
 // ---------- マウス操作関連の状態 ----------
 let dragging = false;      // ドラッグ中かどうか
 let dragAnchor = 0;        // ドラッグを開始したサンプル位置
 let dragStartX = 0;        // ドラッグを開始したX座標（クリック判定用）
 let dragMoved = false;     // 一定距離以上動いたか
+let beforeDrag = null;     // ドラッグ開始前の選択範囲とカーソル（ピンチ開始時に元に戻す用）
 
-// 波形のピーク値キャッシュ（キャンバス幅ごとに再計算）
-let peaksCache = null;
+// ---------- タッチのピンチ操作関連の状態 ----------
+const activePointers = new Map(); // 押されているポインタ（ID → X座標）
+let pinch = null;          // ピンチ中の情報 { dist, length, anchor }
+
+// 波形のピーク値キャッシュ（一定サンプル数ごとの最小値・最大値。オーディオデータが変わったら再計算）
+let blockPeaks = null;
+// ピーク値キャッシュの1ブロックあたりのサンプル数
+const PEAK_BLOCK = 256;
+
+// 1サンプルを最大何CSSピクセルの幅まで拡大できるか
+const MAX_PX_PER_SAMPLE = 8;
+// スクロールバー用の中身の最大幅（ブラウザの要素幅の上限を超えないようにする）
+const MAX_SCROLL_WIDTH = 10_000_000;
+// プログラムから設定した直近のスクロール位置（スクロールイベントの無限ループ防止用）
+let lastScrollLeft = 0;
 
 // 読み込みに対応する拡張子（デコードはブラウザ標準機能で行う）
 const SUPPORTED_EXT = /\.(wav|mp3|ogg|oga|opus|flac|m4a)$/i;
@@ -149,11 +173,15 @@ async function loadFile(file) {
     state.selection = null;
     state.cursor = 0;
     state.history = [];
+    // 読み込み直後は全体を表示する
+    state.viewStart = 0;
+    state.viewLength = buffer.length;
+    blockPeaks = null;
 
     // ※ エクスポート形式の選択はリセットせず、前回の選択を引き継ぐ
 
     // 編集用のUIを表示
-    waveWrap.hidden = false;
+    waveArea.hidden = false;
     infoBox.hidden = false;
     controls.hidden = false;
     helpText.hidden = false;
@@ -232,9 +260,9 @@ function resizeCanvases() {
     c.width = w;
     c.height = h;
   }
-  peaksCache = null;
-  drawWaveform();
-  drawOverlay();
+  // 幅が変わると拡大できる上限も変わるため、表示範囲を整えてから描画する
+  clampView();
+  onViewChanged();
 }
 
 // 表示領域のサイズが変わったら再描画する
@@ -242,30 +270,87 @@ new ResizeObserver(() => {
   if (state.buffer) resizeCanvases();
 }).observe(waveWrap);
 
-// 横1ピクセルごとの最小値・最大値（ピーク）を計算する
-function computePeaks(buffer, width) {
-  const peaks = [];
+// 一定サンプル数（PEAK_BLOCK）ごとの最小値・最大値を計算する
+// （縮小表示時はこのブロック単位の値をまとめて使い、毎回全サンプルを走査しないようにする）
+function buildBlockPeaks(buffer) {
   const len = buffer.length;
+  const blocks = Math.ceil(len / PEAK_BLOCK);
+  const peaks = [];
   for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
     const data = buffer.getChannelData(ch);
-    const min = new Float32Array(width);
-    const max = new Float32Array(width);
-    for (let x = 0; x < width; x++) {
-      // このピクセルに対応するサンプル範囲
-      const from = Math.floor((x * len) / width);
-      const to = Math.max(from + 1, Math.floor(((x + 1) * len) / width));
+    const min = new Float32Array(blocks);
+    const max = new Float32Array(blocks);
+    for (let b = 0; b < blocks; b++) {
+      const from = b * PEAK_BLOCK;
+      const to = Math.min(len, from + PEAK_BLOCK);
       let lo = 1, hi = -1;
-      for (let i = from; i < to && i < len; i++) {
+      for (let i = from; i < to; i++) {
         const v = data[i];
         if (v < lo) lo = v;
         if (v > hi) hi = v;
       }
-      min[x] = lo;
-      max[x] = hi;
+      min[b] = lo;
+      max[b] = hi;
     }
     peaks.push({ min, max });
   }
   return peaks;
+}
+
+// 表示範囲内について、横1ピクセルごとの最小値・最大値（ピーク）を計算する
+function computeViewPeaks(ch, width) {
+  const buffer = state.buffer;
+  const len = buffer.length;
+  const data = buffer.getChannelData(ch);
+  const block = blockPeaks[ch];
+  const spp = state.viewLength / width; // 1ピクセルあたりのサンプル数
+  const min = new Float32Array(width);
+  const max = new Float32Array(width);
+
+  // 指定位置の値を前後のサンプルから直線補間して求める（拡大表示で線をつなげるため）
+  const sampleAt = (pos) => {
+    const i = Math.min(len - 1, Math.max(0, Math.floor(pos)));
+    const next = Math.min(len - 1, i + 1);
+    const t = pos - i;
+    return data[i] * (1 - t) + data[next] * t;
+  };
+
+  for (let x = 0; x < width; x++) {
+    // このピクセルに対応するサンプル範囲
+    const from = state.viewStart + x * spp;
+    const to = from + spp;
+    let lo = 1, hi = -1;
+
+    if (from >= len) {
+      // データの末尾より後ろは描画しない（lo > hi のままにする）
+    } else if (spp >= PEAK_BLOCK) {
+      // 縮小表示：ブロック単位のピーク値をまとめる
+      const b0 = Math.floor(from / PEAK_BLOCK);
+      const b1 = Math.min(block.min.length, Math.max(b0 + 1, Math.floor(to / PEAK_BLOCK)));
+      for (let b = b0; b < b1; b++) {
+        if (block.min[b] < lo) lo = block.min[b];
+        if (block.max[b] > hi) hi = block.max[b];
+      }
+    } else if (spp >= 1) {
+      // 中程度の拡大：サンプルを直接走査する
+      const s0 = Math.floor(from);
+      const s1 = Math.min(len, Math.max(s0 + 1, Math.floor(to)));
+      for (let i = s0; i < s1; i++) {
+        const v = data[i];
+        if (v < lo) lo = v;
+        if (v > hi) hi = v;
+      }
+    } else {
+      // 1サンプルが複数ピクセルにまたがる拡大：補間した値の間を線で結ぶ
+      const v0 = sampleAt(from);
+      const v1 = sampleAt(to);
+      lo = Math.min(v0, v1);
+      hi = Math.max(v0, v1);
+    }
+    min[x] = lo;
+    max[x] = hi;
+  }
+  return { min, max };
 }
 
 // 波形とタイムグリッドを描画する（下層キャンバス）
@@ -278,14 +363,14 @@ function drawWaveform() {
   const dpr = window.devicePixelRatio || 1;
   drawTimeGrid(W, H, dpr);
 
-  // ピーク値はキャッシュがなければ計算する
-  if (!peaksCache) peaksCache = computePeaks(buffer, W);
+  // ブロック単位のピーク値はキャッシュがなければ計算する
+  if (!blockPeaks) blockPeaks = buildBlockPeaks(buffer);
 
   // チャンネルごとに縦方向のレーンを分けて描画
   const channels = buffer.numberOfChannels;
   const laneH = H / channels;
   for (let ch = 0; ch < channels; ch++) {
-    const { min, max } = peaksCache[ch];
+    const { min, max } = computeViewPeaks(ch, W);
     const mid = laneH * ch + laneH / 2;
     const amp = laneH / 2 * 0.9;
 
@@ -296,6 +381,7 @@ function drawWaveform() {
     // 各ピクセル列に縦線を描いて波形を表現
     waveCtx.fillStyle = COLORS.wave;
     for (let x = 0; x < W; x++) {
+      if (min[x] > max[x]) continue; // データのない位置は描かない
       const top = mid - max[x] * amp;
       const bottom = mid - min[x] * amp;
       waveCtx.fillRect(x, top, 1, Math.max(1, bottom - top));
@@ -303,19 +389,24 @@ function drawWaveform() {
   }
 }
 
-// 時間の目盛りを描画する
+// 時間の目盛りを描画する（表示範囲内のみ）
 function drawTimeGrid(W, H, dpr) {
-  const duration = state.buffer.duration;
+  const sr = state.buffer.sampleRate;
+  const viewStartSec = state.viewStart / sr;
+  const viewSec = state.viewLength / sr;
   // 目盛り間隔の候補から、約90px以上の間隔になるものを選ぶ
-  const steps = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1800];
+  const steps = [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1800];
   const minGapPx = 90 * dpr;
-  const step = steps.find((s) => (s / duration) * W >= minGapPx) || steps[steps.length - 1];
+  const step = steps.find((s) => (s / viewSec) * W >= minGapPx) || steps[steps.length - 1];
 
   waveCtx.fillStyle = COLORS.grid;
   waveCtx.font = `${11 * dpr}px system-ui, sans-serif`;
   waveCtx.textBaseline = 'top';
-  for (let t = 0; t <= duration; t += step) {
-    const x = Math.round((t / duration) * W);
+  // 誤差が蓄積しないよう、目盛りの番号から時刻を求める
+  const endSec = Math.min(state.buffer.duration, viewStartSec + viewSec);
+  for (let i = Math.ceil(viewStartSec / step); i * step <= endSec; i++) {
+    const t = i * step;
+    const x = Math.round(((t - viewStartSec) / viewSec) * W);
     waveCtx.fillStyle = COLORS.grid;
     waveCtx.fillRect(x, 0, 1, H);
     waveCtx.fillStyle = COLORS.gridText;
@@ -352,26 +443,234 @@ function drawOverlay(playheadSample = null) {
   }
 }
 
-// サンプル位置 → キャンバスのX座標
+// サンプル位置 → キャンバスのX座標（表示範囲を基準にする）
 function sampleToX(sample) {
-  return Math.round((sample / state.buffer.length) * overlayCanvas.width);
+  return Math.round(((sample - state.viewStart) / state.viewLength) * overlayCanvas.width);
 }
 
-// マウスイベントの位置 → サンプル位置
-function eventToSample(e) {
+// 画面上のX座標 → サンプル位置（小数のまま。表示範囲の外は端に丸める）
+function clientXToSample(clientX) {
   const rect = overlayCanvas.getBoundingClientRect();
-  const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-  return Math.round(ratio * state.buffer.length);
+  const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+  return state.viewStart + ratio * state.viewLength;
+}
+
+// マウスイベントの位置 → サンプル位置（整数）
+function eventToSample(e) {
+  return Math.min(state.buffer.length, Math.max(0, Math.round(clientXToSample(e.clientX))));
 }
 
 // =====================================================
-// ドラッグによる範囲選択
+// 表示範囲（拡大・縮小・スクロール）
 // =====================================================
+
+// 波形キャンバスの表示幅（CSSピクセル）
+function viewWidthPx() {
+  return overlayCanvas.clientWidth || 1;
+}
+
+// 拡大したときの表示範囲の最小サンプル数
+function minViewLength() {
+  return Math.min(state.buffer.length, Math.max(16, viewWidthPx() / MAX_PX_PER_SAMPLE));
+}
+
+// 表示範囲がデータの範囲・拡大の上限からはみ出さないように整える
+function clampView() {
+  const len = state.buffer.length;
+  state.viewLength = Math.min(len, Math.max(minViewLength(), state.viewLength));
+  state.viewStart = Math.min(len - state.viewLength, Math.max(0, state.viewStart));
+}
+
+// 全体を表示しているかどうか
+function isFullView() {
+  return state.viewLength >= state.buffer.length;
+}
+
+// 表示範囲を変更して描き直す
+function setView(start, length) {
+  state.viewStart = start;
+  state.viewLength = length;
+  clampView();
+  onViewChanged();
+}
+
+// 表示範囲が変わったときに波形・スクロールバー・表示を更新する
+// （fromScrollbar が true のときはスクロールバー自身の操作なので位置を書き戻さない）
+function onViewChanged(fromScrollbar = false) {
+  drawWaveform();
+  drawOverlay(getPlayheadSample());
+  if (!fromScrollbar) updateScrollbar();
+  updateZoomUI();
+}
+
+// 指定位置（anchor）を画面上で動かさずに factor 倍に拡大する（1未満なら縮小）
+function zoomBy(factor, anchor = defaultZoomAnchor()) {
+  const ratio = (anchor - state.viewStart) / state.viewLength; // 画面上の anchor の位置（0〜1）
+  const newLength = Math.min(state.buffer.length, Math.max(minViewLength(), state.viewLength / factor));
+  setView(anchor - ratio * newLength, newLength);
+}
+
+// ボタン・キー操作で拡大縮小するときの基準位置
+// （選択範囲やカーソルが表示中ならそこ、なければ表示範囲の中央）
+function defaultZoomAnchor() {
+  const viewEnd = state.viewStart + state.viewLength;
+  const pos = state.selection
+    ? (state.selection.start + state.selection.end) / 2
+    : state.cursor;
+  return pos >= state.viewStart && pos <= viewEnd ? pos : state.viewStart + state.viewLength / 2;
+}
+
+// 全体を表示する
+function zoomFit() {
+  setView(0, state.buffer.length);
+}
+
+// 選択範囲が画面いっぱいになるように拡大する（左右に少し余白をとる）
+function zoomToSelection() {
+  const sel = state.selection;
+  if (!sel) return;
+  const pad = (sel.end - sel.start) * 0.05;
+  setView(sel.start - pad, sel.end - sel.start + pad * 2);
+}
+
+// 表示範囲を指定サンプル数だけ横に移動する
+function scrollViewBy(samples) {
+  setView(state.viewStart + samples, state.viewLength);
+}
+
+// スクロールバーの長さと位置を表示範囲に合わせる
+function updateScrollbar() {
+  const clientW = waveScroll.clientWidth;
+  // 中身の幅を「全体 ÷ 表示範囲」倍にすると、つまみの大きさが表示範囲の割合になる
+  const innerW = Math.min(MAX_SCROLL_WIDTH, Math.round(clientW * (state.buffer.length / state.viewLength)));
+  waveScrollInner.style.width = `${innerW}px`;
+  const maxScroll = innerW - clientW;
+  const maxStart = state.buffer.length - state.viewLength;
+  waveScroll.scrollLeft = maxStart > 0 ? (state.viewStart / maxStart) * maxScroll : 0;
+  // 実際に設定された値（ブラウザで丸められる）を控えておく
+  lastScrollLeft = waveScroll.scrollLeft;
+}
+
+// スクロールバーが操作されたら表示範囲を移動する
+waveScroll.addEventListener('scroll', () => {
+  if (!state.buffer) return;
+  // プログラムから設定した位置と同じなら何もしない（無限ループ防止）
+  if (Math.abs(waveScroll.scrollLeft - lastScrollLeft) < 0.5) return;
+  lastScrollLeft = waveScroll.scrollLeft;
+  const maxScroll = waveScroll.scrollWidth - waveScroll.clientWidth;
+  const maxStart = state.buffer.length - state.viewLength;
+  if (maxScroll <= 0) return;
+  state.viewStart = (waveScroll.scrollLeft / maxScroll) * maxStart;
+  clampView();
+  onViewChanged(true);
+});
+
+// 拡大縮小ボタンの有効/無効と表示範囲の時間を更新する
+function updateZoomUI() {
+  const sr = state.buffer.sampleRate;
+  zoomInBtn.disabled = state.viewLength <= minViewLength();
+  zoomOutBtn.disabled = isFullView();
+  zoomFitBtn.disabled = isFullView();
+  zoomSelBtn.disabled = !state.selection;
+  const zoom = state.buffer.length / state.viewLength;
+  const zoomText = zoom < 10 ? zoom.toFixed(1) : Math.round(zoom).toLocaleString();
+  viewRangeEl.textContent =
+    `${formatTime(state.viewStart / sr)} 〜 ${formatTime((state.viewStart + state.viewLength) / sr)}（×${zoomText}）`;
+}
+
+// ボタンでの拡大・縮小
+zoomInBtn.addEventListener('click', () => zoomBy(2));
+zoomOutBtn.addEventListener('click', () => zoomBy(0.5));
+zoomFitBtn.addEventListener('click', zoomFit);
+zoomSelBtn.addEventListener('click', zoomToSelection);
+
+// ボタンを押した後にフォーカスを外す（スペースキーでボタンが再度押されるのを防ぐ）
+waveArea.addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (btn) btn.blur();
+});
+
+// マウスホイール操作
+// ・Ctrl（Mac は ⌘）+ホイール、またはトラックパッドのピンチ：マウス位置を中心に拡大・縮小
+// ・Shift+ホイール、または横スクロール：表示範囲を横に移動
+waveWrap.addEventListener('wheel', (e) => {
+  if (!state.buffer) return;
+  // スクロール量の単位（ピクセル / 行 / ページ）をピクセルにそろえる
+  const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? viewWidthPx() : 1;
+
+  if (e.ctrlKey || e.metaKey) {
+    e.preventDefault(); // ブラウザ自体の拡大を止める
+    zoomBy(Math.exp(-e.deltaY * unit * 0.002), clientXToSample(e.clientX));
+    return;
+  }
+
+  // 横方向の移動量（Shift 押下時は縦ホイールを横移動として扱う）
+  let dx = 0;
+  if (e.shiftKey) dx = e.deltaX || e.deltaY;
+  else if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) dx = e.deltaX;
+  // 通常の縦ホイールはページのスクロールに任せる
+  if (!dx || isFullView()) return;
+  e.preventDefault();
+  scrollViewBy(dx * unit * (state.viewLength / viewWidthPx()));
+}, { passive: false });
+
+// =====================================================
+// ドラッグによる範囲選択 ／ 2本指ピンチによる拡大縮小
+// =====================================================
+
+// 2本指のピンチ操作を開始する
+function startPinch() {
+  const [x1, x2] = [...activePointers.values()];
+  // 1本目の指で始めた選択操作は取り消して元に戻す
+  dragging = false;
+  if (beforeDrag) {
+    state.selection = beforeDrag.selection;
+    state.cursor = beforeDrag.cursor;
+    updateUI();
+  }
+  pinch = {
+    dist: Math.max(20, Math.abs(x1 - x2)),           // 開始時の指の間隔
+    length: state.viewLength,                         // 開始時の表示範囲の長さ
+    anchor: clientXToSample((x1 + x2) / 2),           // 指の中心にあるサンプル位置
+  };
+}
+
+// ピンチ中の指の動きに合わせて拡大縮小・移動する
+function updatePinch() {
+  const [x1, x2] = [...activePointers.values()];
+  const dist = Math.max(20, Math.abs(x1 - x2));
+  const newLength = Math.min(state.buffer.length,
+    Math.max(minViewLength(), pinch.length * (pinch.dist / dist)));
+  // 開始時に指の中心にあった位置が、現在の指の中心に来るようにする
+  const rect = overlayCanvas.getBoundingClientRect();
+  const ratio = ((x1 + x2) / 2 - rect.left) / rect.width;
+  setView(pinch.anchor - ratio * newLength, newLength);
+}
+
+// 範囲選択のドラッグ中に波形の外へ出たら、その方向へ表示範囲をスクロールする
+function autoScrollWhileDragging(clientX) {
+  if (isFullView()) return;
+  const rect = overlayCanvas.getBoundingClientRect();
+  let overshoot = 0; // 波形の端からはみ出した距離（ピクセル）
+  if (clientX < rect.left) overshoot = clientX - rect.left;
+  else if (clientX > rect.right) overshoot = clientX - rect.right;
+  if (overshoot) scrollViewBy(overshoot * 0.5 * (state.viewLength / rect.width));
+}
 
 overlayCanvas.addEventListener('pointerdown', (e) => {
   if (!state.buffer || e.button !== 0) return;
-  stopPlayback();
   overlayCanvas.setPointerCapture(e.pointerId);
+  activePointers.set(e.pointerId, e.clientX);
+
+  // 2本目の指が触れたらピンチ操作に切り替える
+  if (activePointers.size === 2 && e.pointerType === 'touch') {
+    startPinch();
+    return;
+  }
+  if (activePointers.size > 1) return;
+
+  stopPlayback();
+  beforeDrag = { selection: state.selection, cursor: state.cursor };
   const sample = eventToSample(e);
 
   if (e.shiftKey) {
@@ -392,23 +691,39 @@ overlayCanvas.addEventListener('pointerdown', (e) => {
 });
 
 overlayCanvas.addEventListener('pointermove', (e) => {
+  if (activePointers.has(e.pointerId)) activePointers.set(e.pointerId, e.clientX);
+  // ピンチ中は拡大縮小のみ行う
+  if (pinch) {
+    if (activePointers.size >= 2) updatePinch();
+    return;
+  }
   if (!dragging) return;
   // 数ピクセル以上動いたらドラッグ（範囲選択）とみなす
   if (!dragMoved && Math.abs(e.clientX - dragStartX) < 3) return;
   dragMoved = true;
+  autoScrollWhileDragging(e.clientX);
   setSelection(dragAnchor, eventToSample(e));
 });
 
-overlayCanvas.addEventListener('pointerup', (e) => {
+// 指やボタンが離れたとき（キャンセルされたときも同様に後片付けする）
+function onPointerEnd(e) {
+  activePointers.delete(e.pointerId);
+  // ピンチ終了：すべての指が離れるまで選択操作は再開しない
+  if (pinch) {
+    if (activePointers.size === 0) pinch = null;
+    return;
+  }
   if (!dragging) return;
   dragging = false;
-  if (!dragMoved) {
+  if (!dragMoved && e.type === 'pointerup') {
     // ほぼ動いていなければクリック：選択を解除してカーソル位置を設定
     state.selection = null;
     state.cursor = eventToSample(e);
     updateUI();
   }
-});
+}
+overlayCanvas.addEventListener('pointerup', onPointerEnd);
+overlayCanvas.addEventListener('pointercancel', onPointerEnd);
 
 // 選択範囲を設定する（開始・終了の大小は自動で整える）
 function setSelection(a, b) {
@@ -489,6 +804,9 @@ function cropSelection() {
   state.buffer = extractRange(state.buffer, sel.start, sel.end);
   state.selection = null;
   state.cursor = 0;
+  // 残した範囲全体を表示する
+  state.viewStart = 0;
+  state.viewLength = state.buffer.length;
   onBufferChanged();
 }
 
@@ -505,8 +823,10 @@ function undo() {
 
 // オーディオデータが変わったときに波形を描き直す
 function onBufferChanged() {
-  peaksCache = null;
-  drawWaveform();
+  blockPeaks = null;
+  // 長さが変わるため、表示範囲がはみ出さないように整える（拡大率はなるべく維持）
+  clampView();
+  onViewChanged();
   updateUI();
 }
 
@@ -594,6 +914,10 @@ function startPlayback() {
   playStartSample = start;
   playEndSample = end;
   playBtn.textContent = '■ 停止';
+
+  // 再生開始位置が表示範囲の外なら、そこが見えるように表示範囲を移動する
+  if (!isSampleVisible(start)) setView(start, state.viewLength);
+  playheadWasVisible = true;
   animatePlayhead();
 }
 
@@ -614,11 +938,31 @@ function finishPlayback() {
   drawOverlay();
 }
 
+// 現在の再生位置（サンプル単位）を返す（停止中は null）
+function getPlayheadSample() {
+  if (!sourceNode) return null;
+  const elapsed = audioCtx.currentTime - playStartCtxTime;
+  return Math.min(playEndSample, playStartSample + Math.round(elapsed * state.buffer.sampleRate));
+}
+
+// 指定サンプル位置が表示範囲内にあるか
+function isSampleVisible(sample) {
+  return sample >= state.viewStart && sample <= state.viewStart + state.viewLength;
+}
+
 // 再生位置を毎フレーム描画する
 function animatePlayhead() {
   if (!sourceNode) return;
-  const elapsed = audioCtx.currentTime - playStartCtxTime;
-  const pos = Math.min(playEndSample, playStartSample + Math.round(elapsed * state.buffer.sampleRate));
+  const pos = getPlayheadSample();
+
+  // 再生位置が表示範囲の右端を越えたら、次の範囲へページ送りする
+  // （ユーザーがスクロールして再生位置を画面外にした場合は追いかけない）
+  const visible = isSampleVisible(pos);
+  if (!visible && playheadWasVisible && !dragging && !pinch) {
+    setView(pos, state.viewLength);
+  } else {
+    playheadWasVisible = visible;
+  }
   drawOverlay(pos);
   cursorTimeEl.textContent = formatTime(pos / state.buffer.sampleRate);
   animationId = requestAnimationFrame(animatePlayhead);
@@ -702,7 +1046,8 @@ function updateUI() {
   deleteBtn.disabled = !state.selection;
   cropBtn.disabled = !state.selection;
   undoBtn.disabled = state.history.length === 0;
-  drawOverlay();
+  updateZoomUI();
+  drawOverlay(getPlayheadSample());
 }
 
 // 秒数を「分:秒.ミリ秒」形式の文字列にする
@@ -748,5 +1093,17 @@ document.addEventListener('keydown', (e) => {
     // Esc：選択を解除
     state.selection = null;
     updateUI();
+  } else if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === '+' || e.key === '=')) {
+    // + キー：拡大（Ctrl+「+」はブラウザの拡大に任せる）
+    e.preventDefault();
+    zoomBy(2);
+  } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key === '-') {
+    // - キー：縮小
+    e.preventDefault();
+    zoomBy(0.5);
+  } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key === '0') {
+    // 0 キー：全体を表示
+    e.preventDefault();
+    zoomFit();
   }
 });

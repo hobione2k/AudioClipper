@@ -34,10 +34,25 @@
       <span id="dropText"><span class="drop-text-pc">オーディオファイル（WAV / MP3 / OGG / FLAC / M4A）をドラッグ&ドロップ、またはクリックして選択</span><span class="drop-text-mobile">オーディオファイル（WAV / MP3 / OGG / FLAC / M4A）を選択</span></span>
     </label>
 
-    <!-- 波形表示エリア：下層に波形、上層に選択範囲と再生位置を描画 -->
-    <div id="waveWrap" class="wave-wrap" hidden>
-      <canvas id="waveCanvas"></canvas>
-      <canvas id="overlayCanvas"></canvas>
+    <!-- 波形表示エリア（波形＋横スクロールバー＋拡大縮小ボタン） -->
+    <div id="waveArea" class="wave-area" hidden>
+      <!-- 波形：下層に波形、上層に選択範囲と再生位置を描画 -->
+      <div id="waveWrap" class="wave-wrap">
+        <canvas id="waveCanvas"></canvas>
+        <canvas id="overlayCanvas"></canvas>
+      </div>
+      <!-- 拡大表示中に表示範囲を移動するための横スクロールバー -->
+      <div id="waveScroll" class="wave-scroll">
+        <div id="waveScrollInner" class="wave-scroll-inner"></div>
+      </div>
+      <!-- 表示範囲の拡大・縮小 -->
+      <div class="zoom-bar">
+        <button id="zoomOutBtn" title="縮小（- キー）">－ 縮小</button>
+        <button id="zoomInBtn" title="拡大（+ キー）">＋ 拡大</button>
+        <button id="zoomFitBtn" title="全体を表示（0 キー）">全体表示</button>
+        <button id="zoomSelBtn" disabled>選択範囲を拡大</button>
+        <span class="view-range">表示: <b id="viewRange">-</b></span>
+      </div>
     </div>
 
     <!-- 時間情報の表示 -->
@@ -84,7 +99,8 @@
     </div>
 
     <p class="help" id="help" hidden>
-      波形をドラッグして範囲を選択 ／ クリックで再生位置を指定 ／ Shift+クリックで選択範囲を拡張
+      波形をドラッグして範囲を選択 ／ クリックで再生位置を指定 ／ Shift+クリックで選択範囲を拡張<br>
+      Ctrl+ホイール（スマホは2本指ピンチ）で拡大・縮小 ／ Shift+ホイール・横スクロール・スクロールバーで表示位置を移動
     </p>
   </main>
 
